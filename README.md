@@ -1,6 +1,6 @@
 # Overview
 
-This repo contains the sample code for the article: [Beyond REST: Using WebSockets for two-way communication in your React app](https://blog.logrocket.com/beyond-rest-using-websockets-for-two-way-communication-in-your-react-app-884eff6655f5)
+This repo contains the sample code for the Labcamp: 
 
 It implements a WebSockets client-server system that lets two people play
 connect4 against each other
