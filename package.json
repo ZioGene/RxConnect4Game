@@ -2,7 +2,7 @@
   "name": "connect4",
   "version": "1.0.0",
   "scripts": {
-    "server": "node ./server.js"
+    "start": "node ./server/server.js"
   },
   "dependencies": {
     "rxjs": "^6.3.3"
