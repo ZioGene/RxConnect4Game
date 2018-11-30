@@ -21,17 +21,6 @@ wss.on('connection', function (client) {
     let player = 'red';
     const subscription = new Subscription();
     console.log(`New Client ${clientId} CONNECTED!`);
-    if (players.red == null) {
-        players.red = client;
-        client.send(JSON.stringify({color: 'red'}));
-    } else if (players.yellow == null) {
-        players.yellow = client;
-        client.send(JSON.stringify({color: 'yellow'}));
-        wss.clients.forEach(c => c.send({turn: 'red'}));
-    } else {
-        subscription.unsubscribe();
-        client.unsubscribe();
-    }
 
     client.on('disconnect', function () {
         if (players.red === client) {
@@ -59,7 +48,18 @@ wss.on('connection', function (client) {
         }
         switch (message.type) {
             case 'connect': {
-                player = message.color;
+                if (players.red == null) {
+                    players.red = client;
+                    client.send(JSON.stringify({color: 'red'}));
+                } else if (players.yellow == null) {
+                    players.yellow = client;
+                    player = 'yellow';
+                    client.send(JSON.stringify({color: 'yellow'}));
+                    wss.clients.forEach(c => c.send({turn: 'red'}));
+                } else {
+                    subscription.unsubscribe();
+                    client.unsubscribe();
+                }
                 wss.clients.forEach(c => c.send(JSON.stringify({board: board})));
                 break;
             }
@@ -70,29 +70,26 @@ wss.on('connection', function (client) {
             }
             case 'move': {
                 // Ignore players clicking when it's not their turn
-                if (players[player] !== client) {
-                    console.log('click from wrong player: ' + player === 'red' ? 'yellow' : 'red');
+                if (message.color !== turnPlayer) {
+                    console.log(`move from wrong player color: ${player} -> now is turn of player color: ${turnPlayer}`);
                     return;
                 }
-
                 // Ignore clicks on full columns
                 if (board[0][message.col] !== 'white') {
-                    console.log('click on full message: ' + message);
+                    console.warn('move is not allowed, column is already full!');
                     return;
                 }
-
                 // Ignore clicks before both players are connected
                 if ((players.red == null) || (players.yellow == null)) {
-                    console.log('click before all players are connected');
+                    console.warn('Start move before all players are connected!');
                     return;
                 }
-
                 // find first open spot in the message
                 let row = -1;
                 for (row = 5; row >= 0; --row) {
                     if (board[row][message.col] === 'white') {
                         board[row][message.col] = player;
-                        break
+                        break;
                     }
                 }
 
