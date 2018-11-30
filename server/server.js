@@ -60,6 +60,7 @@ wss.on('connection', function (client) {
         switch (message.type) {
             case 'connect': {
                 player = message.color;
+                wss.clients.forEach(c => c.send(JSON.stringify({board: board})));
                 break;
             }
             case 'disconnect': {
