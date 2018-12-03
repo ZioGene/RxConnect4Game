@@ -1,320 +1,234 @@
 import { Component, OnInit } from '@angular/core';
 import { webSocket } from 'rxjs/webSocket';
-import { switchMap, retryWhen } from 'rxjs/operators';
-import { fromEvent, timer, merge } from 'rxjs';
+import { retryWhen, switchMap } from 'rxjs/operators';
+import { timer } from 'rxjs';
 
 @Component({
-  selector: 'app-game',
-  templateUrl: './game.component.html',
-  styleUrls: ['./game.component.scss']
+    selector: 'app-game',
+    templateUrl: './game.component.html',
+    styleUrls: ['./game.component.scss']
 })
 export class GameComponent implements OnInit {
-  cells;
-  newGameBtn;
-  winner;
-  turn; 
-  nTurn = 1;
-  webSocket$;
-  color;
-  finish = false;
-  elementID: string;
+    cells: string[];
+    rows: number[][];
+    winner: string;
+    turn: string;
+    nTurn = 1;
+    webSocket$;
+    myColor: string;
+    hoverCell: number;
 
-  constructor() { }
+    constructor() {
+        this.myColor = sessionStorage.getItem('myColor');
+    }
 
-  ngOnInit() {
-    this.cells = Array.from(document.querySelectorAll(".cell"));
-    this.newGameBtn = document.querySelector("button");
-    this.winner = document.querySelector("#winner");
+    ngOnInit() {
+        // this.rows = Array(6).fill(0);
+        this.cells = Array.from({length: 42}, () => '');
+        this.rows = Array(6).fill(0).map(x => Array(7).fill(''));
 
-    // this.newGameBtn.addEventListener("click", newGame);
+        this.webSocket$ = webSocket('ws://' + window.location.hostname + ':8081');
+        this.webSocket$
+            .multiplex(
+                () => {
+                    return {type: 'connect', color: this.myColor};
+                },
+                () => ({type: 'disconnect'}),
+                (_) => true
+            )
+            .pipe(
+                retryWhen(switchMap(() => timer(1000))) // disconnect strategy
+            )
+            .subscribe((resp) => {
+                    console.log(resp);
+                    switch (resp.type) {
+                        case 'info': {
+                            this.myColor = resp.color;
+                            sessionStorage.setItem('myColor', resp.color);
+                            break;
+                        }
+                        case 'init': {
+                            this.turn = resp.turn;
+                            this.resetIntrnal();
+                            break;
+                        }
+                        case 'move': {
+                            console.log('move received: ', resp);
+                            this.cells[resp.selected] = this.turn;
+                            this.turn = resp.turn;
+                            break;
+                        }
+                        case 'finish': {
+                            this.winner = resp.result;
+                            break;
+                        }
+                    }
+                },
+                (err) => console.error(err),
+                () => console.warn('Completed!')
+            );
+    }
 
-    this.webSocket$ = webSocket('ws://' + window.location.hostname + ':8081');
-    this.webSocket$
-      .multiplex(
-        () => {
-          return { type: 'connect' };
-        },
-        () => ({ type: 'disconnect' }),
-        (_) => true
-      )
-      .pipe(
-        retryWhen(switchMap(() => timer(1000))) // disconnect strategy
-      )
-      .subscribe((resp) => {
-        console.log(resp);
-        switch (resp.type) {
-          case 'info': {
-            this.color = resp.color;
-            const element = document.querySelector(".mycolor");
-            element.classList.add(this.color);
-            break;
-          }
-          case 'init': {
-            this.turn = resp.turn;
-            const element = document.querySelector(".color-turn");
-            element.classList.remove('red');
-            element.classList.remove('yellow');
-            element.classList.add(this.turn);
-            break;
-          }
-          case 'move': {
-            console.log('move received: ', resp);
-            this.turn = resp.turn;
-            const element = document.querySelector(".color-turn");
-            element.classList.remove('red');
-            element.classList.remove('yellow');
-            element.classList.add(this.turn);
-            // update tabella prendendo "selected" da resp
-            const element2 = document.getElementById(resp.selected)
-            if (!element2.classList.contains(this.turn === 'red' ? 'yellow' : 'red')) {
-              element2.classList.add(this.turn === 'red' ? 'yellow' : 'red');
-            }
-            break;
-          }
+    newGame() {
+        const result = window.confirm('Are you sure to start new match?');
+        if (result) {
+            this.resetIntrnal();
+            this.webSocket$.next({type: 'finish', result: 'RESET'});
         }
-      },
-        (err) => console.error(err),
-        () => console.warn('Completed!')
-      );
-  }
-
-  // sendMessage(content, sender, isBroadcast, turn) {
-  //   if (content && content.length > 0) {
-  //     const message = {
-  //       type: 'message',
-  //       content: { content: content },
-  //       from: '',
-  //       turn: ''
-  //     };
-  //     // serverMessages.push(message);
-  //     console.log('sendMessage: ', JSON.stringify(message));
-  //     this.webSocket$.next(message);
-  //   }
-  // }
-
-  newGame() {
-    this.cells.forEach(cell => {
-      cell.classList.remove("red");
-      cell.classList.remove("yellow");
-    });
-    this.winner.textContent = "";
-    this.winner.style.color = "black";
-    this.turn = 1;
-  }
-
-  stopHoverEffect() {
-    for (let cell of this.cells) {
-      cell.classList.remove("hover-red");
-      cell.classList.remove("hover-yellow");
-    }
-  }
-
-  changeValue(event) {
-    // this.elementID = event.target.id;
-    // console.log(this.elementID);
-    // check if my turn
-    if (this.color === this.turn) {
-      let row = 5;
-      const col = this.cells.indexOf(event.target) % 7;
-      while (
-        this.cells[row * 7 + col].classList.contains("red") ||
-        this.cells[row * 7 + col].classList.contains("yellow")
-      ) {
-        row--;
-      }
-      this.cells[row * 7 + col].classList.add(this.color);
-      this.elementID = this.cells[row * 7 + col].id;
-      console.log(this.elementID);
-      for (let check of this.cells) {
-        // this.checkRedVictory(check);
-        // this.checkYellowVictory(check);
-        this.checkVictory(check);
-      }
-      if (!this.finish) {
-        this.passTurn();
-      }
-    }
-  }
-
-
-  beginHoverEffect(event) {
-    let row = 5;
-    const col = this.cells.indexOf(event.target) % 7;
-    while (
-      this.cells[row * 7 + col].classList.contains("red") ||
-      this.cells[row * 7 + col].classList.contains("yellow")
-    ) {
-      row--;
-    }
-    this.cells[row * 7 + col].classList.add("hover-" + this.color);
-  }
-
-
-  passTurn() {
-    this.nTurn++;
-    if (this.nTurn > 42) {
-      this.announceVictory("None");
-    } else {
-      const nextTurn = this.turn === 'red' ? 'yellow' : 'red';
-      this.turn = nextTurn;
-      console.log('passTurn to: ', nextTurn);
-      const element = document.querySelector(".color-turn");
-            element.classList.remove('red');
-            element.classList.remove('yellow');
-            element.classList.add(this.turn);
-      this.webSocket$.next({ type: 'move', turn: nextTurn, selected: this.elementID });
-    }
-  }
-
-  checkRow(element) {
-    const index = this.cells.indexOf(element);
-    if (index % 7 < 3) {
-      if (
-        element.classList.contains("red") &&
-        this.cells[index + 1].classList.contains("red") &&
-        this.cells[index + 2].classList.contains("red") &&
-        this.cells[index + 3].classList.contains("red")
-      ) {
-        console.log('checkRow: RED');
-        return "Red";
-      } else if (
-        element.classList.contains("yellow") &&
-        this.cells[index + 1].classList.contains("yellow") &&
-        this.cells[index + 2].classList.contains("yellow") &&
-        this.cells[index + 3].classList.contains("yellow")
-      ) {
-        console.log('checkRow: YELLOW');
-        return "Yellow";
-      }
-    }
-  }
-
-  checkCol(element) {
-    const index = this.cells.indexOf(element);
-    if (index < 21) {
-      if (
-        element.classList.contains("red") &&
-        this.cells[index + 7].classList.contains("red") &&
-        this.cells[index + 14].classList.contains("red") &&
-        this.cells[index + 21].classList.contains("red")
-      ) {
-        console.log('checkCol: RED');
-        return "Red";
-      } else if (
-        element.classList.contains("yellow") &&
-        this.cells[index + 7].classList.contains("yellow") &&
-        this.cells[index + 14].classList.contains("yellow") &&
-        this.cells[index + 21].classList.contains("yellow")
-      ) {
-        console.log('checkCol: YELLOW');
-        return "Yellow";
-      }
-    }
-  }
-
-  checkLeftDiagonal(element) {
-    const index = this.cells.indexOf(element);
-    if (index < 21 && index % 7 > 2) {
-      if (
-        element.classList.contains("red") &&
-        this.cells[index + 6].classList.contains("red") &&
-        this.cells[index + 12].classList.contains("red") &&
-        this.cells[index + 18].classList.contains("red")
-      ) {
-        console.log('checkLeftDiagonal: RED');
-        return "Red";
-      } else if (
-        element.classList.contains("yellow") &&
-        this.cells[index + 6].classList.contains("yellow") &&
-        this.cells[index + 12].classList.contains("yellow") &&
-        this.cells[index + 18].classList.contains("yellow")
-      ) {
-        console.log('checkLeftDiagonal: YELLOW');
-        return "Yellow";
-      }
-    }
-  }
-
-  checkRightDiagonal(element) {
-    const index = this.cells.indexOf(element);
-    if (index < 21 && index % 7 < 3) {
-      if (
-        element.classList.contains("red") &&
-        this.cells[index + 8].classList.contains("red") &&
-        this.cells[index + 16].classList.contains("red") &&
-        this.cells[index + 24].classList.contains("red")
-      ) {
-        console.log('checkRightDiagonal: RED');
-        return "Red";
-      } else if (
-        element.classList.contains("yellow") &&
-        this.cells[index + 8].classList.contains("yellow") &&
-        this.cells[index + 16].classList.contains("yellow") &&
-        this.cells[index + 24].classList.contains("yellow")
-      ) {
-        console.log('checkRightDiagonal: YELLOW');
-        return "Yellow";
-      }
-    }
-  }
-
-  // checkRedVictory(element) {
-  //   if (
-  //     this.checkRow(element) === "Red" ||
-  //     this.checkCol(element) === "Red" ||
-  //     this.checkLeftDiagonal(element) === "Red" ||
-  //     this.checkRightDiagonal(element) === "Red"
-  //   ) {
-  //     this.announceVictory("Red");
-  //   }
-  // }
-
-  // checkYellowVictory(element) {
-  //   if (
-  //     this.checkRow(element) === "Yellow" ||
-  //     this.checkCol(element) === "Yellow" ||
-  //     this.checkLeftDiagonal(element) === "Yellow" ||
-  //     this.checkRightDiagonal(element) === "Yellow"
-  //   ) {
-  //     this.announceVictory("Yellow");
-  //   }
-  // }
-
-  checkVictory(element) {
-    if (  // check RED victory
-      this.checkRow(element) === "Red" ||
-      this.checkCol(element) === "Red" ||
-      this.checkLeftDiagonal(element) === "Red" ||
-      this.checkRightDiagonal(element) === "Red"
-    ) {
-      this.announceVictory("Red");
-    } else if ( // check YELLOW victory
-      this.checkRow(element) === "Yellow" ||
-      this.checkCol(element) === "Yellow" ||
-      this.checkLeftDiagonal(element) === "Yellow" ||
-      this.checkRightDiagonal(element) === "Yellow"
-    ) {
-      this.announceVictory("Yellow");
-    }
-  }
-
-  announceVictory(victor) {
-    if (victor === "Red") {
-      this.winner.textContent = "Red Wins!";
-      this.winner.style.color = "#ff1744";
-      this.webSocket$.next('WIN RED');
-    } else if (victor === "Yellow") {
-      this.winner.textContent = "Yellow Wins!";
-      this.winner.style.color = "#ffea00";
-      this.webSocket$.next('WIN YELLOW');
-    } else {  // victor === "none"
-      this.winner.textContent = "Tie!";
-      this.webSocket$.next('TIE');
     }
 
-    this.finish = true;
-    this.turn = NaN;
-    this.nTurn = NaN;
-  }
+    private resetIntrnal() {
+        this.cells = Array.from({length: 42}, () => '');
+        this.rows = Array(6).fill(0).map(x => Array(7).fill(''));
+        this.winner = '';
+        this.nTurn = 1;
+    }
+
+    changeValue(col: number) {
+        // check if my turn
+        const index = this.beginHoverEffect(col);
+        if (!this.winner && this.myColor === this.turn && this.cells[index].length === 0) {
+            this.cells[index] = this.myColor;
+            this.cells.forEach((row, i) => {
+                this.checkVictory(i);
+            });
+            this.passTurn(index);
+        }
+    }
+
+
+    passTurn(index: number) {
+        this.nTurn++;
+        if (this.nTurn > 42) {
+            this.announceVictory('none');
+        } else {
+            this.webSocket$.next({type: 'move', turn: this.turn, selected: index});
+        }
+    }
+
+    checkRow(index: number) {
+        if (index % 7 <= 3) {
+            if (this.cells[index] === 'red' &&
+                this.cells[index + 1] === 'red' &&
+                this.cells[index + 2] === 'red' &&
+                this.cells[index + 3] === 'red'
+            ) {
+                console.log('checkRow: RED');
+                return 'Red';
+            } else if (
+                this.cells[index] === 'yellow' &&
+                this.cells[index + 1] === 'yellow' &&
+                this.cells[index + 2] === 'yellow' &&
+                this.cells[index + 3] === 'yellow'
+            ) {
+                console.log('checkRow: YELLOW');
+                return 'Yellow';
+            }
+        }
+    }
+
+    checkCol(index) {
+        if (index < 21) {
+            if (
+                this.cells[index] === 'red' &&
+                this.cells[index + 7] === 'red' &&
+                this.cells[index + 14] === 'red' &&
+                this.cells[index + 21] === 'red'
+            ) {
+                console.log('checkCol: RED');
+                return 'Red';
+            } else if (
+                this.cells[index] === 'yellow' &&
+                this.cells[index + 7] === 'yellow' &&
+                this.cells[index + 14] === 'yellow' &&
+                this.cells[index + 21] === 'yellow'
+            ) {
+                console.log('checkCol: YELLOW');
+                return 'Yellow';
+            }
+        }
+    }
+
+    checkLeftDiagonal(index) {
+        if (index < 21 && index % 7 >= 2) {
+            if (
+                this.cells[index] === 'red' &&
+                this.cells[index + 6] === 'red' &&
+                this.cells[index + 12] === 'red' &&
+                this.cells[index + 18] === 'red'
+            ) {
+                console.log('checkLeftDiagonal: RED');
+                return 'Red';
+            } else if (
+                index === 'yellow' &&
+                this.cells[index + 6] === 'yellow' &&
+                this.cells[index + 12] === 'yellow' &&
+                this.cells[index + 18] === 'yellow'
+            ) {
+                console.log('checkLeftDiagonal: YELLOW');
+                return 'Yellow';
+            }
+        }
+    }
+
+    checkRightDiagonal(index) {
+        if (index < 21 && index % 7 <= 3) {
+            if (
+                this.cells[index] === 'red' &&
+                this.cells[index + 8] === 'red' &&
+                this.cells[index + 16] === 'red' &&
+                this.cells[index + 24] === 'red'
+            ) {
+                console.log('checkRightDiagonal: RED');
+                return 'Red';
+            } else if (
+                this.cells[index] === 'yellow' &&
+                this.cells[index + 8] === 'yellow' &&
+                this.cells[index + 16] === 'yellow' &&
+                this.cells[index + 24] === 'yellow'
+            ) {
+                console.log('checkRightDiagonal: YELLOW');
+                return 'Yellow';
+            }
+        }
+    }
+
+    checkVictory(index) {
+        if (  // check RED victory
+            this.checkRow(index) === 'Red' ||
+            this.checkCol(index) === 'Red' ||
+            this.checkLeftDiagonal(index) === 'Red' ||
+            this.checkRightDiagonal(index) === 'Red'
+        ) {
+            this.announceVictory('Red');
+        } else if ( // check YELLOW victory
+            this.checkRow(index) === 'Yellow' ||
+            this.checkCol(index) === 'Yellow' ||
+            this.checkLeftDiagonal(index) === 'Yellow' ||
+            this.checkRightDiagonal(index) === 'Yellow'
+        ) {
+            this.announceVictory('Yellow');
+        }
+    }
+
+    beginHoverEffect(col: number): number {
+        let row = 5;
+        while (
+            this.cells[row * 7 + col] === 'red' ||
+            this.cells[row * 7 + col] === 'yellow'
+            ) {
+            row--;
+        }
+        return row * 7 + col;
+    }
+
+    announceVictory(victor) {
+        this.winner = victor;
+        if (victor !== 'none') {
+            this.webSocket$.next({type: 'finish', result: `${this.winner} WIN`});
+        } else {  // victor === 'none'
+            this.webSocket$.next({type: 'finish', result: 'TIE'});
+        }
+    }
 
 }

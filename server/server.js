@@ -5,6 +5,11 @@ const WebSocketServer = require('ws').Server;
 const {Subscription} = require('rxjs');
 const cors = require('cors');
 
+const ip = require("ip");
+
+console.log('Your IP address is: ');
+console.dir(ip.address());
+
 const app = express();
 const PORT = 8081;
 
@@ -20,14 +25,16 @@ wss.on('connection', function (client) {
     const clientId = cid++;
     const subscription = new Subscription();
     console.log(`New Client ${clientId} CONNECTED!`);
-    
+
     // client.send(JSON.stringify({sender: 'SERVER', clientId: clientId, type: 'INFO'}));
 
-    client.on('disconnect', function () {
+    client.on('close', () => {
         if (players.red === client) {
-            players.red = null
+            console.log(`client ${clientId} player RED -> DISCONNECT`);
+            players.red = null;
         } else if (players.yellow === client) {
-            players.yellow = null
+            players.yellow = null;
+            console.log(`client ${clientId} player YELLOW -> DISCONNECT`);
         }
         wss.clients.forEach(c => c.send(JSON.stringify({turn: 'abort'})));
         subscription.unsubscribe();
@@ -49,33 +56,43 @@ wss.on('connection', function (client) {
         }
         switch (message.type) {
             case 'connect': {
-                if (players.red == null) {
-                    players.red = client;
-                    client.send(JSON.stringify({type: 'info', color: 'red'}));
-                } else if (players.yellow == null) {
-                    players.yellow = client;
-                    client.send(JSON.stringify({type: 'info', color: 'yellow'}));
-                    wss.clients.forEach(c => c.send(JSON.stringify({type: 'init', turn: 'red'})));
+                if (message.myColor) {
+                    players[message.myColor] = client;
+                    client.send(JSON.stringify({type: 'info', color: message.myColor}));
                 } else {
-                    subscription.unsubscribe();
-                    client.unsubscribe();
+                    if (players.red == null) {
+                        players.red = client;
+                        client.send(JSON.stringify({type: 'info', color: 'red'}));
+                    } else if (players.yellow == null) {
+                        players.yellow = client;
+                        client.send(JSON.stringify({type: 'info', color: 'yellow'}));
+                        wss.clients.forEach(c => c.send(JSON.stringify({type: 'init', turn: 'red'})));
+                    } else {
+                        subscription.unsubscribe();
+                        // client.unsubscribe();
+                    }
                 }
                 break;
             }
             case 'disconnect': {
-                players[message.color] = null;
+                players[message.myColor] = null;
                 wss.clients.forEach(c => c.send({turn: 'abort'}));
                 break;
             }
             case 'move': {
-                if (message.turn === "yellow") {
-                    console.log('MOVE send to player YELLOW');
-                    //players.yellow.send(JSON.stringify(message)); 
-                    wss.clients.forEach(c => c.send(JSON.stringify(message)));
-                } else {
-                    console.log('MOVE send to player RED');
-                    players.red.send(JSON.stringify(message));    
+                console.log(`MOVE received from player ${message.turn}: ${message.selected}`);
+                // switching turn
+                message.turn = message.turn === 'red' ? 'yellow' : 'red';
+                wss.clients.forEach(c => c.send(JSON.stringify(message)));
+                break;
+            }
+            case 'finish': {
+                console.log(`match finish with result: ${message.result}`);
+                wss.clients.forEach(c => c.send(JSON.stringify(message)));
+                if(message.result === 'RESET') {
+                    wss.clients.forEach(c => c.send(JSON.stringify({type: 'init', turn: 'red'})));
                 }
+                // subscription.unsubscribe();
                 break;
             }
         }

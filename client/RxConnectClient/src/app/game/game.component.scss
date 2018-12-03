@@ -1,49 +1,60 @@
 table {
-    margin: 0 auto;
-  }
-  
-  td {
-    width: 60px;
-    height: 60px;
-  }
-  
-  .cell {
-    border: 2px solid;
-    border-radius: 50%;
-    margin: 10px;
-  }
-  
-  .hover-red {
-    background: rgba(255, 23, 68, 0.6);
-  }
-  
-  .red {
-    background: #ff1744;
-  }
-  
-  .hover-yellow {
-    background: rgba(255, 234, 0, 0.6);
-  }
-  
-  .yellow {
-    background: #ffea00;
-  }
-  
-  button {
-    all: inherit;
-    font-size: 2.25em;
-    margin: 0 auto;
-  }
-  
-  #winner {
-    font-weight: bold;
-    text-align: center;
-    font-size: 2.25em;
-  }
+  margin: 0 auto;
+}
 
-  .cell2 {
-    border: 2px solid;
-    border-radius: 50%;
-    margin: 10px;
-  }
+td {
+  width: 60px;
+  height: 60px;
+}
+
+.cell {
+  border: 2px solid;
+  border-radius: 50%;
+  margin: 10px;
+}
+
+.hover-red {
+  background: rgba(255, 23, 68, 0.6);
+}
+
+.red {
+  background: #ff1744;
+}
+
+.hover-yellow {
+  background: rgba(255, 234, 0, 0.6);
+}
+
+.yellow {
+  background: #ffea00;
+}
+
+button {
+  all: inherit;
+  font-size: 2.25em;
+  margin: 0 auto;
+}
+
+button[disabled] {
+  color: white;
+}
+
+.waiting {
+  font-weight: normal;
+  font-style: italic;
+  text-align: left;
+  font-size: 1em;
+}
+
+.winner {
+  font-weight: bold;
+  text-align: center;
+  font-size: 2.25em;
+}
+
+.cell2 {
+  border: 2px solid;
+  border-radius: 50%;
+  margin: 10px;
+}
   
