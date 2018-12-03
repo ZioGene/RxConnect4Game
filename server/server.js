@@ -36,7 +36,7 @@ wss.on('connection', function (client) {
             players.yellow = null;
             console.log(`client ${clientId} player YELLOW -> DISCONNECT`);
         }
-        wss.clients.forEach(c => c.send(JSON.stringify({turn: 'abort'})));
+        wss.clients.forEach(c => c.send(JSON.stringify({type: 'abort', cells: cells})));
         subscription.unsubscribe();
     });
 
@@ -113,7 +113,6 @@ function reset() {
     players.red = null;
     players.yellow = null;
     const r = Math.floor(Math.random() * (1 + 1)); // restituisce un numero random tra 0 e 1 inclusi
-    console.log(r);
     turnPlayer = r === 1 ? 'red' : 'yellow';
     nTurn = 1;
 }

@@ -52,6 +52,10 @@ export class GameComponent implements OnInit {
                             this.cells = resp.cells;
                             break;
                         }
+                        case 'abort': {
+                            this.turn = '';
+                            break;
+                        }
                         case 'move': {
                             console.log('move received: ', resp);
                             this.cells = resp.cells;
