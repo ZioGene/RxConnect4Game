@@ -17,9 +17,10 @@ const wss = new WebSocketServer({server});
 
 app.use(cors());
 let cid = 0;
-let board = null;
+let cells = null;
 const players = {red: null, yellow: null};
 let turnPlayer = 'red';
+let nTurn = 1;
 
 wss.on('connection', function (client) {
     const clientId = cid++;
@@ -66,7 +67,8 @@ wss.on('connection', function (client) {
                     } else if (players.yellow == null) {
                         players.yellow = client;
                         client.send(JSON.stringify({type: 'info', color: 'yellow'}));
-                        wss.clients.forEach(c => c.send(JSON.stringify({type: 'init', turn: 'red'})));
+                        console.log('turn: ' + turnPlayer);
+                        wss.clients.forEach(c => c.send(JSON.stringify({type: 'init', turn: turnPlayer, cells: cells})));
                     } else {
                         subscription.unsubscribe();
                         // client.unsubscribe();
@@ -80,17 +82,28 @@ wss.on('connection', function (client) {
                 break;
             }
             case 'move': {
+                nTurn++;
+                cells[message.selected] = message.turn;
+                if (nTurn > 42) {
+                    announceVictory('none');
+                } else {
+                    cells.forEach((row, i) => {
+                        checkVictory(i);
+                    });
+                }
                 console.log(`MOVE received from player ${message.turn}: ${message.selected}`);
                 // switching turn
+                message.cells = cells;
                 message.turn = message.turn === 'red' ? 'yellow' : 'red';
                 wss.clients.forEach(c => c.send(JSON.stringify(message)));
                 break;
             }
             case 'finish': {
                 console.log(`match finish with result: ${message.result}`);
-                wss.clients.forEach(c => c.send(JSON.stringify(message)));
-                if(message.result === 'RESET') {
-                    wss.clients.forEach(c => c.send(JSON.stringify({type: 'init', turn: 'red'})));
+                // wss.clients.forEach(c => c.send(JSON.stringify(message)));
+                if (message.result === 'RESET') {
+                    reset();
+                    wss.clients.forEach(c => c.send(JSON.stringify({type: 'init', turn: turnPlayer, cells: cells})));
                 }
                 // subscription.unsubscribe();
                 break;
@@ -99,123 +112,129 @@ wss.on('connection', function (client) {
     });
 });
 
-//function reset() {
-//    board = Array(6).fill(0).map(x => Array(8).fill('white'));
-//    players.red = null;
-//    players.yellow = null;
-//    turnPlayer = 'red';
-//}
+function reset() {
+    cells = Array.from({length: 42}, () => '');
+    players.red = null;
+    players.yellow = null;
+    const r = Math.floor(Math.random() * (1 + 1)); // restituisce un numero random tra 0 e 1 inclusi
+    console.log(r);
+    turnPlayer = r === 1 ? 'red' : 'yellow';
+    nTurn = 1;
+}
 
-//function checkVictory(i, j) {
-//    const c = board[i][j];
-//
-//    // Check horizontally
-//    let count = 0;
-//    // count to the left
-//    for (let k = 1; k < 4; ++k) {
-//        if (j - k < 0) {
-//            break;
-//        }
-//        if (board[i][j - k] !== c) {
-//            break;
-//        }
-//        count++;
-//    }
-//    // count to the right
-//    for (let k = 1; k < 4; ++k) {
-//        if (j + k > 7) {
-//            break;
-//        }
-//        if (board[i][j + k] !== c) {
-//            break;
-//        }
-//        count++;
-//    }
-//
-//    if (count > 2) {
-//        return true;
-//    }
-//
-//    // Check vertically
-//    count = 0;
-//    // count up
-//    for (let k = 1; k < 4; ++k) {
-//        if (i - k < 0) {
-//            break;
-//        }
-//        if (board[i - k][j] !== c) {
-//            break;
-//        }
-//        count++;
-//    }
-//    // count down
-//    for (let k = 1; k < 4; ++k) {
-//        if (i + k > 5) {
-//            break;
-//        }
-//        if (board[i + k][j] !== c) {
-//            break;
-//        }
-//        count++;
-//    }
-//
-//    if (count > 2) {
-//        return true;
-//    }
-//
-//    // Check diagonal top-left -> bottom-right
-//    count = 0;
-//    // count to top-left
-//    for (let k = 1; k < 4; ++k) {
-//        if (i - k < 0 || j - k < 0) {
-//            break;
-//        }
-//        if (board[i - k][j - k] !== c) {
-//            break;
-//        }
-//        count++;
-//    }
-//    // count to bottom-right
-//    for (let k = 1; k < 4; ++k) {
-//        if (i + k > 5 || j + k > 7) {
-//            break;
-//        }
-//        if (board[i + k][j + k] !== c) {
-//            break;
-//        }
-//        count++;
-//    }
-//
-//    if (count > 2) {
-//        return true;
-//    }
-//
-//    // Check diagonal bottom-left -> top-right
-//    count = 0;
-//    // count to bottom-left
-//    for (let k = 1; k < 4; ++k) {
-//        if (i + k > 5 || j - k < 0) {
-//            break;
-//        }
-//        if (board[i + k][j - k] !== c) {
-//            break;
-//        }
-//        count++;
-//    }
-//    // count to top-right
-//    for (let k = 1; k < 4; ++k) {
-//        if (i - k < 0 || j + k > 7) {
-//            break;
-//        }
-//        if (board[i - k][j + k] !== c) {
-//            break;
-//        }
-//        count++;
-//    }
-//
-//    return count > 2;
-//}
+function checkRow(index) {
+    if (index % 7 <= 3) {
+        if (cells[index] === 'red' &&
+            cells[index + 1] === 'red' &&
+            cells[index + 2] === 'red' &&
+            cells[index + 3] === 'red'
+        ) {
+            console.log('checkRow: RED');
+            return 'Red';
+        } else if (
+            cells[index] === 'yellow' &&
+            cells[index + 1] === 'yellow' &&
+            cells[index + 2] === 'yellow' &&
+            cells[index + 3] === 'yellow'
+        ) {
+            console.log('checkRow: YELLOW');
+            return 'Yellow';
+        }
+    }
+}
 
-//reset();
+function checkCol(index) {
+    if (index < 21) {
+        if (
+            cells[index] === 'red' &&
+            cells[index + 7] === 'red' &&
+            cells[index + 14] === 'red' &&
+            cells[index + 21] === 'red'
+        ) {
+            console.log('checkCol: RED');
+            return 'Red';
+        } else if (
+            cells[index] === 'yellow' &&
+            cells[index + 7] === 'yellow' &&
+            cells[index + 14] === 'yellow' &&
+            cells[index + 21] === 'yellow'
+        ) {
+            console.log('checkCol: YELLOW');
+            return 'Yellow';
+        }
+    }
+}
+
+function checkLeftDiagonal(index) {
+    if (index < 21 && index % 7 >= 2) {
+        if (
+            cells[index] === 'red' &&
+            cells[index + 6] === 'red' &&
+            cells[index + 12] === 'red' &&
+            cells[index + 18] === 'red'
+        ) {
+            console.log('checkLeftDiagonal: RED');
+            return 'Red';
+        } else if (
+            index === 'yellow' &&
+            cells[index + 6] === 'yellow' &&
+            cells[index + 12] === 'yellow' &&
+            cells[index + 18] === 'yellow'
+        ) {
+            console.log('checkLeftDiagonal: YELLOW');
+            return 'Yellow';
+        }
+    }
+}
+
+function checkRightDiagonal(index) {
+    if (index < 21 && index % 7 <= 3) {
+        if (
+            cells[index] === 'red' &&
+            cells[index + 8] === 'red' &&
+            cells[index + 16] === 'red' &&
+            cells[index + 24] === 'red'
+        ) {
+            console.log('checkRightDiagonal: RED');
+            return 'Red';
+        } else if (
+            cells[index] === 'yellow' &&
+            cells[index + 8] === 'yellow' &&
+            cells[index + 16] === 'yellow' &&
+            cells[index + 24] === 'yellow'
+        ) {
+            console.log('checkRightDiagonal: YELLOW');
+            return 'Yellow';
+        }
+    }
+}
+
+function checkVictory(index) {
+    if (  // check RED victory
+        checkRow(index) === 'Red' ||
+        checkCol(index) === 'Red' ||
+        checkLeftDiagonal(index) === 'Red' ||
+        checkRightDiagonal(index) === 'Red'
+    ) {
+        announceVictory('Red');
+    } else if ( // check YELLOW victory
+        checkRow(index) === 'Yellow' ||
+        checkCol(index) === 'Yellow' ||
+        checkLeftDiagonal(index) === 'Yellow' ||
+        checkRightDiagonal(index) === 'Yellow'
+    ) {
+        announceVictory('Yellow');
+    }
+}
+
+function announceVictory(victor) {
+    if (victor !== 'none') {
+        wss.clients.forEach(c => c.send(JSON.stringify({type: 'finish', result: `${victor} WIN`})));
+    } else {  // victor === 'none'
+        wss.clients.forEach(c => c.send(JSON.stringify({type: 'finish', result: 'TIE'})));
+    }
+}
+
+reset();
 server.listen(PORT, () => console.log(`server listening on port ${PORT}`));
 server.on('request', app);
