@@ -4,15 +4,11 @@ const path = require('path');
 const WebSocketServer = require('ws').Server;
 const {Subscription} = require('rxjs');
 const cors = require('cors');
-
 const ip = require("ip");
 
-console.log('Your IP address is: ');
-console.dir(ip.address());
-
 const app = express();
-const PORT = 8081;
 
+const PORT = 8081;
 const wss = new WebSocketServer({server});
 
 app.use(cors());
@@ -21,6 +17,9 @@ let cells = null;
 const players = {red: null, yellow: null};
 let turnPlayer = 'red';
 let nTurn = 1;
+
+console.log('Your IP address is: ');
+console.dir(ip.address());
 
 wss.on('connection', function (client) {
     const clientId = cid++;
@@ -71,7 +70,6 @@ wss.on('connection', function (client) {
                         wss.clients.forEach(c => c.send(JSON.stringify({type: 'init', turn: turnPlayer, cells: cells})));
                     } else {
                         subscription.unsubscribe();
-                        // client.unsubscribe();
                     }
                 }
                 break;
@@ -87,7 +85,7 @@ wss.on('connection', function (client) {
                 if (nTurn > 42) {
                     announceVictory('none');
                 } else {
-                    cells.forEach((row, i) => {
+                    cells.forEach((_, i) => {
                         checkVictory(i);
                     });
                 }
@@ -100,12 +98,10 @@ wss.on('connection', function (client) {
             }
             case 'finish': {
                 console.log(`match finish with result: ${message.result}`);
-                // wss.clients.forEach(c => c.send(JSON.stringify(message)));
                 if (message.result === 'RESET') {
                     reset();
                     wss.clients.forEach(c => c.send(JSON.stringify({type: 'init', turn: turnPlayer, cells: cells})));
                 }
-                // subscription.unsubscribe();
                 break;
             }
         }
