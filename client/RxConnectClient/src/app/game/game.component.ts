@@ -10,7 +10,7 @@ import { timer } from 'rxjs';
 })
 export class GameComponent implements OnInit {
     cells: string[];
-    rows: number[][];
+    supportMatrix: number[][];
     winner: string;
     turn: string;
     nTurn = 1;
@@ -23,9 +23,8 @@ export class GameComponent implements OnInit {
     }
 
     ngOnInit() {
-        // this.rows = Array(6).fill(0);
         this.cells = Array.from({length: 42}, () => '');
-        this.rows = Array(6).fill(0).map(x => Array(7).fill(''));
+        this.supportMatrix = Array(6).fill(0).map(x => Array(7).fill(''));
 
         this.webSocket$ = webSocket('ws://' + window.location.hostname + ':8081');
         this.webSocket$
@@ -79,7 +78,7 @@ export class GameComponent implements OnInit {
 
     private resetIntrnal() {
         this.cells = Array.from({length: 42}, () => '');
-        this.rows = Array(6).fill(0).map(x => Array(7).fill(''));
+        this.supportMatrix = Array(6).fill(0).map(x => Array(7).fill(''));
         this.winner = '';
         this.nTurn = 1;
     }

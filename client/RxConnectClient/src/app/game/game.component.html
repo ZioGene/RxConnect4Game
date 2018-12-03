@@ -1,5 +1,5 @@
 <table>
-    <tr *ngFor="let row of rows; let r = index">
+    <tr *ngFor="let row of supportMatrix; let r = index">
         <td class="cell" [id]="(7*r)+c" *ngFor="let cell of row; let c = index"
             [ngClass]="
                   {
